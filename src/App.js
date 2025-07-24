@@ -14,17 +14,18 @@ L.Icon.Default.mergeOptions({
   shadowUrl:
     'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
-const [events, setEvents] = useState(() => {
-  const stored = localStorage.getItem("events");
-  return stored ? JSON.parse(stored) : [];
-});
-const addEvent = (event) => {
-  const updated = [...events, event];
-  setEvents(updated);
-  localStorage.setItem("events", JSON.stringify(updated));
-};
-
 function App() {
+  const [events, setEvents] = useState(() => {
+    const stored = localStorage.getItem("events");
+    return stored ? JSON.parse(stored) : [];
+  });
+
+  const addEvent = (event) => {
+    const updated = [...events, event];
+    setEvents(updated);
+    localStorage.setItem("events", JSON.stringify(updated));
+  };
+
   return (
     <div style={{ display: "flex", height: "100vh" }}>
   {/* Lewa kolumna: formularz + lista */}
