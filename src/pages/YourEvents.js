@@ -1,25 +1,35 @@
 import React, { useEffect, useState } from "react";
 import { db, auth } from "../firebase";
-import { collection, getDocs } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  doc,
+  updateDoc,
+  deleteDoc
+} from "firebase/firestore";
 
 function YourEvents() {
   const [yourEvents, setYourEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0); // do odświeżenia
+
+  const user = auth.currentUser;
 
   useEffect(() => {
     const fetchEvents = async () => {
-      const user = auth.currentUser;
       if (!user) return;
 
       try {
         const querySnapshot = await getDocs(collection(db, "events"));
         const allEvents = querySnapshot.docs.map(doc => ({
           id: doc.id,
-          ...doc.data(),
+          ...doc.data()
         }));
 
         const filtered = allEvents.filter(
-          ev => ev.createdBy === user.email || (ev.participants || []).includes(user.email)
+          ev =>
+            ev.createdBy === user.email ||
+            (ev.participants || []).includes(user.email)
         );
 
         setYourEvents(filtered);
@@ -31,7 +41,32 @@ function YourEvents() {
     };
 
     fetchEvents();
-  }, []);
+  }, [user, refreshKey]);
+
+  const handleLeave = async (eventId) => {
+    try {
+      const ref = doc(db, "events", eventId);
+      const event = yourEvents.find(e => e.id === eventId);
+      const updated = {
+        participants: (event.participants || []).filter(p => p !== user.email)
+      };
+      await updateDoc(ref, updated);
+      setRefreshKey(k => k + 1);
+    } catch (err) {
+      console.error("Błąd przy rezygnacji:", err);
+    }
+  };
+
+  const handleDelete = async (eventId) => {
+    const confirm = window.confirm("Czy na pewno chcesz usunąć to wydarzenie?");
+    if (!confirm) return;
+    try {
+      await deleteDoc(doc(db, "events", eventId));
+      setRefreshKey(k => k + 1);
+    } catch (err) {
+      console.error("Błąd przy usuwaniu wydarzenia:", err);
+    }
+  };
 
   if (loading) return <p>⏳ Ładowanie...</p>;
 
@@ -41,14 +76,35 @@ function YourEvents() {
       {yourEvents.length === 0 ? (
         <p>Brak wydarzeń, które utworzyłeś lub do których się zapisałeś.</p>
       ) : (
-        yourEvents.map(event => (
-          <div key={event.id} style={{ marginBottom: "1rem", padding: "1rem", background: "#f9f9f9" }}>
-            <h3>{event.sport}</h3>
-            <p><strong>Miejsce:</strong> {event.place}</p>
-            <p><strong>Data:</strong> {event.date}</p>
-            <p><strong>Wolnych miejsc:</strong> {event.slots - (event.participants?.length || 0)}</p>
-          </div>
-        ))
+        yourEvents.map(event => {
+          const isOwner = event.createdBy === user.email;
+          const isParticipant = (event.participants || []).includes(user.email);
+          const freeSlots = event.slots - (event.participants?.length || 0);
+
+          return (
+            <div
+              key={event.id}
+              style={{
+                marginBottom: "1rem",
+                padding: "1rem",
+                background: "#f5f5f5",
+                borderRadius: "8px"
+              }}
+            >
+              <h3>{event.sport}</h3>
+              <p><strong>Miejsce:</strong> {event.place}</p>
+              <p><strong>Data:</strong> {event.date}</p>
+              <p><strong>Wolnych miejsc:</strong> {freeSlots}</p>
+
+              {isOwner && (
+                <button onClick={() => handleDelete(event.id)}>🗑️ Usuń wydarzenie</button>
+              )}
+              {!isOwner && isParticipant && (
+                <button onClick={() => handleLeave(event.id)}>🚪 Zrezygnuj</button>
+              )}
+            </div>
+          );
+        })
       )}
     </div>
   );
