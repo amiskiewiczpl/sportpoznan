@@ -1,7 +1,7 @@
-// helpers/loadGoogleMaps.js
+// src/helpers/loadGoogleMaps.js
 export const loadGoogleMaps = () => {
   return new Promise((resolve, reject) => {
-    if (typeof window.google === "object" && typeof window.google.maps === "object") {
+    if (window.google && window.google.maps) {
       resolve();
       return;
     }
@@ -10,9 +10,8 @@ export const loadGoogleMaps = () => {
     script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.REACT_APP_GOOGLE_MAPS_API_KEY}&libraries=places`;
     script.async = true;
     script.defer = true;
-
-    script.onload = () => resolve();
-    script.onerror = () => reject("Nie udało się załadować Google Maps");
+    script.onload = resolve;
+    script.onerror = reject;
 
     document.head.appendChild(script);
   });
