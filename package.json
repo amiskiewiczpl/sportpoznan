@@ -2,6 +2,7 @@
   "name": "sportpoznan",
   "version": "0.1.0",
   "private": true,
+  "homepage": "https://amiskiewiczpl.github.io/sportpoznan",
   "dependencies": {
     "firebase": "^12.0.0",
     "leaflet": "^1.9.4",

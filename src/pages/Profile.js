@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   auth,
   provider,
@@ -9,9 +9,18 @@ import {
   doc,
   getDoc
 } from "../firebase";
+import { onAuthStateChanged } from "firebase/auth";
 
 function Profile() {
   const [user, setUser] = useState(null);
+
+useEffect(() => {
+  const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    setUser(currentUser);
+  });
+
+  return () => unsubscribe();
+}, []);
 
   const handleLogin = async () => {
     try {
