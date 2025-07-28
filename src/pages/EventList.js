@@ -1,27 +1,47 @@
 import React, { useEffect, useState } from "react";
-import { collection, getDocs, deleteDoc, doc } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  deleteDoc,
+  doc,
+  updateDoc,
+  arrayUnion,
+} from "firebase/firestore";
 import { db, auth } from "../firebase";
 
 function EventList() {
   const [events, setEvents] = useState([]);
   const [filter, setFilter] = useState("Wszystkie");
+  const [userEmail, setUserEmail] = useState(null);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      setUserEmail(user?.email || null);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     const fetchEvents = async () => {
       try {
         const querySnapshot = await getDocs(collection(db, "events"));
-        const eventList = querySnapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        }));
+        const eventList = querySnapshot.docs.map((docSnap) => {
+          const data = docSnap.data();
+          return {
+            id: docSnap.id,
+            ...data,
+            alreadyJoined: data.participants?.includes(userEmail),
+          };
+        });
         setEvents(eventList);
       } catch (error) {
         console.error("Błąd podczas pobierania wydarzeń:", error);
       }
     };
 
-    fetchEvents();
-  }, []);
+    if (userEmail !== undefined) fetchEvents();
+  }, [userEmail]);
 
   const handleDelete = async (id) => {
     console.log("Kliknięto usuń, id:", id);
@@ -35,6 +55,30 @@ function EventList() {
       setEvents((prevEvents) => prevEvents.filter((e) => e.id !== id));
     } catch (error) {
       console.error("Błąd podczas usuwania wydarzenia:", error);
+    }
+  };
+
+  const handleJoin = async (eventId) => {
+    if (!userEmail) {
+      alert("Musisz być zalogowany, aby dołączyć!");
+      return;
+    }
+
+    try {
+      const eventRef = doc(db, "events", eventId);
+      await updateDoc(eventRef, {
+        participants: arrayUnion(userEmail),
+      });
+
+      setEvents((prev) =>
+        prev.map((e) =>
+          e.id === eventId
+            ? { ...e, participants: [...(e.participants || []), userEmail], alreadyJoined: true }
+            : e
+        )
+      );
+    } catch (err) {
+      console.error("Błąd przy dołączaniu:", err);
     }
   };
 
@@ -81,7 +125,13 @@ function EventList() {
             <p>
               <strong>Miejsc:</strong> {event.slots}
             </p>
-            <button onClick={() => handleDelete(event.id)}>🗑️ Usuń</button>
+            <button onClick={() => handleDelete(event.id)}>🗑️ Usuń</button>{" "}
+            <button
+              onClick={() => handleJoin(event.id)}
+              disabled={event.alreadyJoined}
+            >
+              {event.alreadyJoined ? "✅ Zapisany" : "Dołącz"}
+            </button>
           </div>
         ))
       )}
