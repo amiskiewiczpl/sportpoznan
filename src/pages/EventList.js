@@ -8,6 +8,8 @@ import {
 } from "firebase/firestore";
 import { db, auth } from "../firebase";
 
+const adminEmails = process.env.REACT_APP_ADMIN_EMAILS?.split(",") || [];
+
 function EventList() {
   const [events, setEvents] = useState([]);
   const [filter, setFilter] = useState("Wszystkie");
@@ -17,7 +19,6 @@ function EventList() {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       setCurrentUser(user);
     });
-
     return () => unsubscribe();
   }, []);
 
@@ -38,24 +39,19 @@ function EventList() {
     if (!currentUser) return alert("Zaloguj się, aby dołączyć!");
 
     if (event.participants?.includes(currentUser.uid)) {
-      // już zapisany – rezygnacja
+      // Rezygnacja
       const updated = event.participants.filter((id) => id !== currentUser.uid);
-      await updateDoc(doc(db, "events", event.id), {
-        participants: updated,
-      });
+      await updateDoc(doc(db, "events", event.id), { participants: updated });
     } else {
       if (event.participants?.length >= event.slots) {
         alert("Brak wolnych miejsc!");
         return;
       }
-
       const updated = [...(event.participants || []), currentUser.uid];
-      await updateDoc(doc(db, "events", event.id), {
-        participants: updated,
-      });
+      await updateDoc(doc(db, "events", event.id), { participants: updated });
     }
 
-    // Odśwież listę
+    // Refresh listy
     const querySnapshot = await getDocs(collection(db, "events"));
     setEvents(
       querySnapshot.docs.map((docSnap) => ({
@@ -66,11 +62,10 @@ function EventList() {
   };
 
   const handleDelete = async (event) => {
-    if (
-      currentUser &&
-      (event.createdBy === currentUser.uid ||
-        process.env.REACT_APP_ADMIN_IDS?.includes(currentUser.uid))
-    ) {
+    const isAdmin = currentUser && adminEmails.includes(currentUser.email);
+    const isCreator = currentUser && event.createdBy === currentUser.uid;
+
+    if (isCreator || isAdmin) {
       await deleteDoc(doc(db, "events", event.id));
       setEvents(events.filter((e) => e.id !== event.id));
     } else {
@@ -104,10 +99,11 @@ function EventList() {
         filteredEvents.map((event) => {
           const isParticipant = event.participants?.includes(currentUser?.uid);
           const freeSlots = event.slots - (event.participants?.length || 0);
+
           const canDelete =
             currentUser &&
             (event.createdBy === currentUser.uid ||
-              process.env.REACT_APP_ADMIN_IDS?.includes(currentUser.uid));
+              adminEmails.includes(currentUser.email));
 
           return (
             <div
