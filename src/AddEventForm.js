@@ -1,6 +1,8 @@
 import React, { useState } from "react";
+import { db } from "./firebase";
+import { collection, addDoc } from "firebase/firestore";
 
-const AddEventForm = ({ onAdd }) => {
+const AddEventForm = () => {
   const [form, setForm] = useState({
     sport: "",
     place: "",
@@ -17,11 +19,10 @@ const AddEventForm = ({ onAdd }) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     const newEvent = {
-      id: Date.now(),
       sport: form.sport,
       place: form.place,
       coords: [parseFloat(form.lat), parseFloat(form.lng)],
@@ -29,8 +30,14 @@ const AddEventForm = ({ onAdd }) => {
       slots: parseInt(form.slots)
     };
 
-    onAdd(newEvent);
-    setForm({ sport: "", place: "", lat: "", lng: "", date: "", slots: "" });
+    try {
+      await addDoc(collection(db, "events"), newEvent);
+      alert("✅ Wydarzenie dodane!");
+      setForm({ sport: "", place: "", lat: "", lng: "", date: "", slots: "" });
+    } catch (error) {
+      console.error("❌ Błąd podczas dodawania:", error);
+      alert("Wystąpił błąd przy zapisie.");
+    }
   };
 
   const handleSearch = async () => {

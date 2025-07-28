@@ -24,6 +24,7 @@ function EventList() {
   }, []);
 
   const handleDelete = async (id) => {
+    console.log("Kliknięto usuń, id:", id);
     if (!id || typeof id !== "string") {
       console.error("Nieprawidłowe ID wydarzenia do usunięcia:", id);
       return;
