@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "../firebase";
 
 // Naprawienie ikon Leafleta w React
 delete L.Icon.Default.prototype._getIconUrl;
@@ -19,10 +21,16 @@ function MapPage() {
   const [filter, setFilter] = useState("Wszystkie");
 
   useEffect(() => {
-    const stored = localStorage.getItem("events");
-    if (stored) {
-      setEvents(JSON.parse(stored));
-    }
+    const fetchEvents = async () => {
+      const querySnapshot = await getDocs(collection(db, "events"));
+      const fetched = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setEvents(fetched);
+    };
+
+    fetchEvents();
   }, []);
 
   const filteredEvents =
@@ -51,7 +59,7 @@ function MapPage() {
               <Popup>
                 <strong>{event.sport}</strong><br />
                 {event.place}<br />
-                {event.date}
+                📅 {event.date}
               </Popup>
             </Marker>
           ))}
