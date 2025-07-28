@@ -108,11 +108,11 @@ function YourEvents() {
               <p><strong>Data:</strong> {event.date}</p>
               <p><strong>Wolnych miejsc:</strong> {freeSlots}</p>
 
+              {isParticipant && (
+                <button onClick={() => handleLeave(event.id)}>🚪 Zrezygnuj</button>
+              )}
               {isOwner && (
                 <button onClick={() => handleDelete(event.id)}>🗑️ Usuń wydarzenie</button>
-              )}
-              {!isOwner && isParticipant && (
-                <button onClick={() => handleLeave(event.id)}>🚪 Zrezygnuj</button>
               )}
             </div>
           );
