@@ -1,54 +1,61 @@
 import React, { useEffect, useState } from "react";
-import { collection, getDocs, deleteDoc, doc, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  deleteDoc,
+  updateDoc,
+  doc,
+} from "firebase/firestore";
 import { db, auth } from "../firebase";
 
 function EventList() {
   const [events, setEvents] = useState([]);
   const [filter, setFilter] = useState("Wszystkie");
-  const user = auth.currentUser;
+  const [editingEvent, setEditingEvent] = useState(null);
+  const [editForm, setEditForm] = useState({});
 
   useEffect(() => {
     const fetchEvents = async () => {
-      try {
-        const querySnapshot = await getDocs(collection(db, "events"));
-        const eventList = querySnapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        }));
-        setEvents(eventList);
-      } catch (error) {
-        console.error("Błąd podczas pobierania wydarzeń:", error);
-      }
+      const querySnapshot = await getDocs(collection(db, "events"));
+      const eventList = querySnapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
+      }));
+      setEvents(eventList);
     };
-
     fetchEvents();
   }, []);
 
   const handleDelete = async (id) => {
-    const confirm = window.confirm("Czy na pewno usunąć wydarzenie?");
-    if (!confirm) return;
-    try {
-      await deleteDoc(doc(db, "events", id));
-      setEvents((prevEvents) => prevEvents.filter((e) => e.id !== id));
-    } catch (error) {
-      console.error("Błąd podczas usuwania wydarzenia:", error);
-    }
+    await deleteDoc(doc(db, "events", id));
+    setEvents((prev) => prev.filter((e) => e.id !== id));
   };
 
-  const handleJoin = async (id) => {
-    try {
-      const event = events.find(e => e.id === id);
-      const isFull = (event.participants?.length || 0) >= event.slots;
-      if (isFull) return alert("Brak miejsc!");
+  const startEdit = (event) => {
+    setEditingEvent(event.id);
+    setEditForm({
+      sport: event.sport,
+      place: event.place,
+      date: event.date,
+      slots: event.slots,
+    });
+  };
 
-      const updated = {
-        participants: [...(event.participants || []), user.email]
-      };
-      await updateDoc(doc(db, "events", id), updated);
-      setEvents(prev => prev.map(e => e.id === id ? { ...e, ...updated } : e));
-    } catch (err) {
-      console.error("Błąd przy dołączaniu:", err);
-    }
+  const handleEditChange = (e) => {
+    setEditForm({ ...editForm, [e.target.name]: e.target.value });
+  };
+
+  const saveEdit = async (id) => {
+    const docRef = doc(db, "events", id);
+    await updateDoc(docRef, editForm);
+    setEvents((prev) =>
+      prev.map((e) => (e.id === id ? { ...e, ...editForm } : e))
+    );
+    setEditingEvent(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingEvent(null);
   };
 
   const filteredEvents =
@@ -72,13 +79,10 @@ function EventList() {
       <hr style={{ margin: "1rem 0" }} />
 
       {filteredEvents.length === 0 ? (
-        <p>Brak wydarzeń do wyświetlenia.</p>
+        <p>Brak wydarzeń.</p>
       ) : (
         filteredEvents.map((event) => {
-          const isOwner = event.createdBy === user?.email;
-          const isParticipant = (event.participants || []).includes(user?.email);
-          const isFull = (event.participants?.length || 0) >= event.slots;
-          const freeSlots = event.slots - (event.participants?.length || 0);
+          const isAuthor = auth.currentUser?.uid === event.createdBy;
 
           return (
             <div
@@ -90,32 +94,53 @@ function EventList() {
                 borderRadius: "8px",
               }}
             >
-              <h3>{event.sport}</h3>
-              <p><strong>Miejsce:</strong> {event.place}</p>
-              <p><strong>Data:</strong> {event.date}</p>
-              <p><strong>Wolnych miejsc:</strong> {freeSlots}</p>
+              {editingEvent === event.id ? (
+                <>
+                  <input
+                    name="sport"
+                    value={editForm.sport}
+                    onChange={handleEditChange}
+                  />
+                  <input
+                    name="place"
+                    value={editForm.place}
+                    onChange={handleEditChange}
+                  />
+                  <input
+                    name="date"
+                    value={editForm.date}
+                    onChange={handleEditChange}
+                    type="datetime-local"
+                  />
+                  <input
+                    name="slots"
+                    value={editForm.slots}
+                    onChange={handleEditChange}
+                    type="number"
+                  />
+                  <button onClick={() => saveEdit(event.id)}>💾 Zapisz</button>
+                  <button onClick={cancelEdit}>❌ Anuluj</button>
+                </>
+              ) : (
+                <>
+                  <h3>{event.sport}</h3>
+                  <p>
+                    <strong>Miejsce:</strong> {event.place}
+                  </p>
+                  <p>
+                    <strong>Data:</strong> {event.date}
+                  </p>
+                  <p>
+                    <strong>Miejsc:</strong> {event.slots}
+                  </p>
 
-              {/* Lista uczestników */}
-              {event.participants && event.participants.length > 0 && (
-                <p><strong>Uczestnicy:</strong> {event.participants.join(", ")}</p>
-              )}
-
-              {/* Akcje */}
-              {isOwner && (
-                <button onClick={() => handleDelete(event.id)}>🗑️ Usuń</button>
-              )}
-
-              {!isOwner && !isParticipant && (
-                <button
-                  onClick={() => handleJoin(event.id)}
-                  disabled={isFull}
-                >
-                  {isFull ? "🚫 Brak miejsc" : "✅ Dołącz"}
-                </button>
-              )}
-
-              {isParticipant && !isOwner && (
-                <span style={{ color: "green" }}>✅ Już zapisany</span>
+                  {isAuthor && (
+                    <>
+                      <button onClick={() => startEdit(event)}>✏️ Edytuj</button>{" "}
+                      <button onClick={() => handleDelete(event.id)}>🗑️ Usuń</button>
+                    </>
+                  )}
+                </>
               )}
             </div>
           );
