@@ -22,25 +22,14 @@ function EditEvent() {
   useEffect(() => {
     const init = async () => {
       try {
-        await loadGoogleMaps();       // ⬅️ załaduj Google Maps JS
-        setGmapsReady(true);          // ⬅️ dopiero potem kontynuuj
+        await loadGoogleMaps();
+        setGmapsReady(true);
       } catch (err) {
-        console.error("Błąd ładowania Google Maps API", err);
+        console.error("❌ Nie udało się załadować Google Maps:", err);
       }
     };
     init();
   }, []);
-useEffect(() => {
-  const init = async () => {
-    try {
-      await loadGoogleMaps();
-      setGmapsReady(true);
-    } catch (err) {
-      console.error("❌ Nie udało się załadować Google Maps:", err);
-    }
-  };
-  init();
-}, []);
 
   useEffect(() => {
     const fetchEvent = async () => {
@@ -92,10 +81,10 @@ useEffect(() => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-if (!form.coords || !form.coords.lat || !form.coords.lng) {
-  alert("Musisz wybrać lokalizację z podpowiedzi.");
-  return;
-}
+    if (!form.coords || !form.coords.lat || !form.coords.lng) {
+      alert("Musisz wybrać lokalizację z podpowiedzi.");
+      return;
+    }
 
     await updateDoc(doc(db, "events", id), {
       sport: form.sport,
@@ -128,13 +117,9 @@ if (!form.coords || !form.coords.lat || !form.coords.lng) {
         {({ getInputProps, suggestions, getSuggestionItemProps, loading }) => (
           <div>
             <input
-  {...getInputProps({ placeholder: "Wpisz nazwę obiektu sportowego..." })}
-  style={{
-    padding: "0.5rem",
-    width: "100%",
-    marginBottom: "0.5rem"
-  }}
-/>
+              {...getInputProps({ placeholder: "Wpisz nazwę obiektu sportowego..." })}
+              style={{ padding: "0.5rem", width: "100%", marginBottom: "0.5rem" }}
+            />
             <div>
               {loading && <div>⏳ Szukam miejsc...</div>}
               {suggestions.map((s, i) => (
