@@ -9,6 +9,7 @@ import AddEvent from "./pages/AddEvent";
 import EventList from "./pages/EventList";
 import MapPage from "./pages/MapPage";
 import Profile from "./pages/Profile";
+import YourEvents from "./pages/YourEvents";
 
 function App() {
   const [user, setUser] = useState(null);
@@ -34,6 +35,7 @@ function App() {
           <Link to="/dodaj" style={{ marginRight: "1rem" }}>➕ Dodaj</Link>
           <Link to="/mapa" style={{ marginRight: "1rem" }}>🗺️ Mapa</Link>
           <Link to="/profil">🙋 Profil</Link>
+          <Link to="/twoje">🧾 Twoje wydarzenia</Link>
         </nav>
 
         <Routes>
@@ -42,6 +44,7 @@ function App() {
           <Route path="/dodaj" element={<AddEvent />} />
           <Route path="/mapa" element={<MapPage />} />
           <Route path="/profil" element={<Profile />} />
+          <Route path="/twoje" element={<YourEvents />} />
         </Routes>
       </div>
     </Router>
