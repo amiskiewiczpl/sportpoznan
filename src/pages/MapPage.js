@@ -3,15 +3,21 @@ import {
   MapContainer,
   TileLayer,
   Marker,
-  Popup,
-  useMap,
+  Popup
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
-import { collection, getDocs, updateDoc, doc, arrayUnion, arrayRemove } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  updateDoc,
+  doc,
+  arrayUnion,
+  arrayRemove
+} from "firebase/firestore";
 import { db, auth } from "../firebase";
 
-// Ikonki sportów:
+// Ikonki sportów
 const sportIcons = {
   "Piłka nożna": "⚽",
   "Siatkówka": "🏐",
@@ -19,7 +25,7 @@ const sportIcons = {
   "Tenis": "🏓",
 };
 
-// Zresetuj domyślne ikony Leaflet
+// Naprawienie ikon Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl:
@@ -34,60 +40,56 @@ function MapPage() {
   const [events, setEvents] = useState([]);
   const [filter, setFilter] = useState("Wszystkie");
   const [loading, setLoading] = useState(true);
-  const [userEmail, setUserEmail] = useState("");
+  const [user, setUser] = useState(null);
 
-  // Pobierz aktualnego użytkownika
+  // Obserwacja zalogowanego użytkownika
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      setUserEmail(user?.email || "");
-    });
+    const unsubscribe = auth.onAuthStateChanged((u) => setUser(u));
     return () => unsubscribe();
   }, []);
 
-  // Pobieranie wydarzeń z Firestore
   const fetchEvents = async () => {
     setLoading(true);
     try {
-      const querySnapshot = await getDocs(collection(db, "events"));
-      const eventList = querySnapshot.docs.map((docSnap) => {
-        const data = docSnap.data();
-        const participants = data.participants || [];
+      const snapshot = await getDocs(collection(db, "events"));
+      const data = snapshot.docs.map((docSnap) => {
+        const event = docSnap.data();
+        const participants = event.participants || [];
         return {
           id: docSnap.id,
-          ...data,
+          ...event,
           participants,
-          alreadyJoined: participants.includes(userEmail),
-          freeSlots: Math.max(data.slots - participants.length, 0),
+          alreadyJoined: user ? participants.includes(user.uid) : false,
+          freeSlots: Math.max(event.slots - participants.length, 0),
         };
       });
-      setEvents(eventList);
+      setEvents(data);
     } catch (err) {
-      console.error("Błąd podczas pobierania wydarzeń:", err);
+      console.error("Błąd podczas pobierania:", err);
     }
     setLoading(false);
   };
 
   useEffect(() => {
-    if (userEmail !== undefined) {
+    if (user !== undefined) {
       fetchEvents();
     }
-  }, [userEmail]);
+  }, [user]);
 
   const handleJoinOrLeave = async (eventId, alreadyJoined) => {
-    if (!userEmail) {
-      alert("Musisz być zalogowany, aby dołączyć!");
+    if (!user) {
+      alert("Zaloguj się, aby dołączyć.");
       return;
     }
 
     try {
-      const eventRef = doc(db, "events", eventId);
-      await updateDoc(eventRef, {
+      const ref = doc(db, "events", eventId);
+      await updateDoc(ref, {
         participants: alreadyJoined
-          ? arrayRemove(userEmail)
-          : arrayUnion(userEmail),
+          ? arrayRemove(user.uid)
+          : arrayUnion(user.uid),
       });
-
-      await fetchEvents(); // Odśwież po zmianie
+      await fetchEvents();
     } catch (err) {
       console.error("Błąd przy aktualizacji uczestnictwa:", err);
     }

@@ -12,7 +12,7 @@ function YourEvents() {
   const [yourEvents, setYourEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(undefined); // ważne: undefined na start
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(setUser);
@@ -21,7 +21,11 @@ function YourEvents() {
 
   useEffect(() => {
     const fetchEvents = async () => {
-      if (!user) return;
+      if (!user) {
+        setYourEvents([]);
+        setLoading(false);
+        return;
+      }
 
       try {
         const querySnapshot = await getDocs(collection(db, "events"));
@@ -72,7 +76,11 @@ function YourEvents() {
     }
   };
 
-  if (loading) return <p>⏳ Ładowanie...</p>;
+  if (user === undefined || loading) return <p>⏳ Ładowanie...</p>;
+
+  if (!user) {
+    return <p>🔒 Musisz być zalogowany, aby zobaczyć swoje wydarzenia.</p>;
+  }
 
   return (
     <div>
