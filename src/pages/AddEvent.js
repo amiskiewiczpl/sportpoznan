@@ -1,28 +1,71 @@
-import React from "react";
-import AddEventForm from "../AddEventForm";
-import { collection, addDoc } from "firebase/firestore";
-import { auth, db } from "../firebase";
+import React, { useState } from "react";
+import PlacesAutocomplete, { geocodeByAddress, getLatLng } from "react-places-autocomplete";
 
-function AddEvent() {
-  const addEvent = async (event) => {
-    try {
-      await addDoc(collection(db, "events"), {
-        ...event,
-        createdBy: auth.currentUser?.uid || "anon",
-        participants: [],
-      });
-      alert("Wydarzenie dodane!");
-    } catch (error) {
-      console.error("Błąd przy dodawaniu wydarzenia:", error);
-      alert("Nie udało się dodać wydarzenia.");
+function AddEventForm({ onAdd }) {
+  const [form, setForm] = useState({
+    sport: "",
+    place: "",
+    date: "",
+    slots: 1,
+    coords: null
+  });
+
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const handleSelect = async (address) => {
+    setForm((prev) => ({ ...prev, place: address }));
+    const results = await geocodeByAddress(address);
+    const latLng = await getLatLng(results[0]);
+    setForm((prev) => ({ ...prev, coords: latLng }));
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!form.place || !form.coords) {
+      alert("Wybierz lokalizację z podpowiedzi!");
+      return;
     }
+    onAdd(form);
   };
 
   return (
-    <div>
-      <AddEventForm onAdd={addEvent} />
-    </div>
+    <form onSubmit={handleSubmit}>
+      <label>Sport:</label><br />
+      <input name="sport" value={form.sport} onChange={handleChange} /><br />
+
+      <label>Miejsce:</label><br />
+      <PlacesAutocomplete
+        value={form.place}
+        onChange={(address) => setForm({ ...form, place: address })}
+        onSelect={handleSelect}
+      >
+        {({ getInputProps, suggestions, getSuggestionItemProps, loading }) => (
+          <div>
+            <input {...getInputProps({ placeholder: "Wpisz miejsce..." })} />
+            <div style={{ background: "#fff", border: "1px solid #ccc" }}>
+              {loading && <div>Ładowanie...</div>}
+              {suggestions.map((sug) => (
+                <div {...getSuggestionItemProps(sug)} key={sug.placeId}>
+                  {sug.description}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </PlacesAutocomplete>
+
+      <br />
+      <label>Data:</label><br />
+      <input type="datetime-local" name="date" value={form.date} onChange={handleChange} /><br />
+
+      <label>Liczba miejsc:</label><br />
+      <input type="number" name="slots" value={form.slots} onChange={handleChange} /><br /><br />
+
+      <button type="submit">➕ Dodaj</button>
+    </form>
   );
 }
 
-export default AddEvent;
+export default AddEventForm;
