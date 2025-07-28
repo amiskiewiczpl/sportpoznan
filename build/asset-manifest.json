@@ -1,13 +1,13 @@
 {
   "files": {
     "main.css": "/sportpoznan/static/css/main.2e662a65.css",
-    "main.js": "/sportpoznan/static/js/main.ee9997dd.js",
+    "main.js": "/sportpoznan/static/js/main.0e8b15b4.js",
     "index.html": "/sportpoznan/index.html",
     "main.2e662a65.css.map": "/sportpoznan/static/css/main.2e662a65.css.map",
-    "main.ee9997dd.js.map": "/sportpoznan/static/js/main.ee9997dd.js.map"
+    "main.0e8b15b4.js.map": "/sportpoznan/static/js/main.0e8b15b4.js.map"
   },
   "entrypoints": [
     "static/css/main.2e662a65.css",
-    "static/js/main.ee9997dd.js"
+    "static/js/main.0e8b15b4.js"
   ]
 }
