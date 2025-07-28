@@ -29,13 +29,16 @@ const AddEventForm = ({ onAdd }) => {
     const eventToAdd = {
       sport: form.sport,
       place: form.place,
-      coords: [parseFloat(form.lat), parseFloat(form.lng)],
+      coords: { lat: parseFloat(form.lat), lng: parseFloat(form.lng) },
       date: form.date,
       slots: parseInt(form.slots),
       createdBy: auth.currentUser.uid,
       participants: [],
     };
-
+if (!form.lat || !form.lng || isNaN(form.lat) || isNaN(form.lng)) {
+  alert("Musisz wybrać lokalizację z podpowiedzi po wyszukaniu.");
+  return;
+}
     await onAdd(eventToAdd);
 
     // Reset formularza

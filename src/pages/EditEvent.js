@@ -81,6 +81,10 @@ function EditEvent() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+if (!form.coords || !form.coords.lat || !form.coords.lng) {
+  alert("Musisz wybrać lokalizację z podpowiedzi.");
+  return;
+}
 
     await updateDoc(doc(db, "events", id), {
       sport: form.sport,
@@ -112,7 +116,14 @@ function EditEvent() {
       >
         {({ getInputProps, suggestions, getSuggestionItemProps, loading }) => (
           <div>
-            <input {...getInputProps({ placeholder: "Wpisz miejsce..." })} />
+            <input
+  {...getInputProps({ placeholder: "Wpisz nazwę obiektu sportowego..." })}
+  style={{
+    padding: "0.5rem",
+    width: "100%",
+    marginBottom: "0.5rem"
+  }}
+/>
             <div>
               {loading && <div>⏳ Szukam miejsc...</div>}
               {suggestions.map((s, i) => (
