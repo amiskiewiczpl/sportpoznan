@@ -4,6 +4,12 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>SportPoznań</title>
+    <script>
+  // Jeśli nie ma # w adresie, przekieruj do #/
+  if (!window.location.hash) {
+    window.location.replace(window.location.pathname + window.location.search + '#/');
+  }
+</script>
   </head>
   <body>
     <div id="root"></div>
