@@ -3,16 +3,23 @@ import {
   collection,
   getDocs,
   deleteDoc,
-  updateDoc,
   doc,
+  updateDoc,
 } from "firebase/firestore";
 import { db, auth } from "../firebase";
 
 function EventList() {
   const [events, setEvents] = useState([]);
   const [filter, setFilter] = useState("Wszystkie");
-  const [editingEvent, setEditingEvent] = useState(null);
-  const [editForm, setEditForm] = useState({});
+  const [currentUser, setCurrentUser] = useState(null);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      setCurrentUser(user);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     const fetchEvents = async () => {
@@ -23,39 +30,52 @@ function EventList() {
       }));
       setEvents(eventList);
     };
+
     fetchEvents();
   }, []);
 
-  const handleDelete = async (id) => {
-    await deleteDoc(doc(db, "events", id));
-    setEvents((prev) => prev.filter((e) => e.id !== id));
-  };
+  const handleJoin = async (event) => {
+    if (!currentUser) return alert("Zaloguj się, aby dołączyć!");
 
-  const startEdit = (event) => {
-    setEditingEvent(event.id);
-    setEditForm({
-      sport: event.sport,
-      place: event.place,
-      date: event.date,
-      slots: event.slots,
-    });
-  };
+    if (event.participants?.includes(currentUser.uid)) {
+      // już zapisany – rezygnacja
+      const updated = event.participants.filter((id) => id !== currentUser.uid);
+      await updateDoc(doc(db, "events", event.id), {
+        participants: updated,
+      });
+    } else {
+      if (event.participants?.length >= event.slots) {
+        alert("Brak wolnych miejsc!");
+        return;
+      }
 
-  const handleEditChange = (e) => {
-    setEditForm({ ...editForm, [e.target.name]: e.target.value });
-  };
+      const updated = [...(event.participants || []), currentUser.uid];
+      await updateDoc(doc(db, "events", event.id), {
+        participants: updated,
+      });
+    }
 
-  const saveEdit = async (id) => {
-    const docRef = doc(db, "events", id);
-    await updateDoc(docRef, editForm);
-    setEvents((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, ...editForm } : e))
+    // Odśwież listę
+    const querySnapshot = await getDocs(collection(db, "events"));
+    setEvents(
+      querySnapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
+      }))
     );
-    setEditingEvent(null);
   };
 
-  const cancelEdit = () => {
-    setEditingEvent(null);
+  const handleDelete = async (event) => {
+    if (
+      currentUser &&
+      (event.createdBy === currentUser.uid ||
+        process.env.REACT_APP_ADMIN_IDS?.includes(currentUser.uid))
+    ) {
+      await deleteDoc(doc(db, "events", event.id));
+      setEvents(events.filter((e) => e.id !== event.id));
+    } else {
+      alert("Brak uprawnień do usunięcia tego wydarzenia.");
+    }
   };
 
   const filteredEvents =
@@ -79,10 +99,15 @@ function EventList() {
       <hr style={{ margin: "1rem 0" }} />
 
       {filteredEvents.length === 0 ? (
-        <p>Brak wydarzeń.</p>
+        <p>Brak wydarzeń do wyświetlenia.</p>
       ) : (
         filteredEvents.map((event) => {
-          const isAuthor = auth.currentUser?.uid === event.createdBy;
+          const isParticipant = event.participants?.includes(currentUser?.uid);
+          const freeSlots = event.slots - (event.participants?.length || 0);
+          const canDelete =
+            currentUser &&
+            (event.createdBy === currentUser.uid ||
+              process.env.REACT_APP_ADMIN_IDS?.includes(currentUser.uid));
 
           return (
             <div
@@ -94,53 +119,31 @@ function EventList() {
                 borderRadius: "8px",
               }}
             >
-              {editingEvent === event.id ? (
-                <>
-                  <input
-                    name="sport"
-                    value={editForm.sport}
-                    onChange={handleEditChange}
-                  />
-                  <input
-                    name="place"
-                    value={editForm.place}
-                    onChange={handleEditChange}
-                  />
-                  <input
-                    name="date"
-                    value={editForm.date}
-                    onChange={handleEditChange}
-                    type="datetime-local"
-                  />
-                  <input
-                    name="slots"
-                    value={editForm.slots}
-                    onChange={handleEditChange}
-                    type="number"
-                  />
-                  <button onClick={() => saveEdit(event.id)}>💾 Zapisz</button>
-                  <button onClick={cancelEdit}>❌ Anuluj</button>
-                </>
-              ) : (
-                <>
-                  <h3>{event.sport}</h3>
-                  <p>
-                    <strong>Miejsce:</strong> {event.place}
-                  </p>
-                  <p>
-                    <strong>Data:</strong> {event.date}
-                  </p>
-                  <p>
-                    <strong>Miejsc:</strong> {event.slots}
-                  </p>
+              <h3>{event.sport}</h3>
+              <p>
+                <strong>Miejsce:</strong> {event.place}
+              </p>
+              <p>
+                <strong>Data:</strong> {event.date}
+              </p>
+              <p>
+                <strong>Wolnych miejsc:</strong> {freeSlots}
+              </p>
+              <p>
+                <strong>Uczestnicy:</strong>{" "}
+                {event.participants?.length > 0
+                  ? event.participants.length
+                  : "Brak"}
+              </p>
 
-                  {isAuthor && (
-                    <>
-                      <button onClick={() => startEdit(event)}>✏️ Edytuj</button>{" "}
-                      <button onClick={() => handleDelete(event.id)}>🗑️ Usuń</button>
-                    </>
-                  )}
-                </>
+              {currentUser && (
+                <button onClick={() => handleJoin(event)}>
+                  {isParticipant ? "🚪 Opuść" : "✅ Dołącz"}
+                </button>
+              )}
+
+              {canDelete && (
+                <button onClick={() => handleDelete(event)}>🗑️ Usuń</button>
               )}
             </div>
           );
