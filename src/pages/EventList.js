@@ -1,28 +1,33 @@
 import React, { useEffect, useState } from "react";
-import { auth, db, toggleParticipant } from "../firebase";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, deleteDoc, doc } from "firebase/firestore";
+import { db, auth } from "../firebase";
 
 function EventList() {
   const [events, setEvents] = useState([]);
   const [filter, setFilter] = useState("Wszystkie");
 
   useEffect(() => {
-  const fetchEvents = async () => {
-    const querySnapshot = await getDocs(collection(db, "events"));
-    const eventsData = [];
-    querySnapshot.forEach((doc) => {
-      eventsData.push({ id: doc.id, ...doc.data() });
-    });
-    setEvents(eventsData);
-  };
+    const fetchEvents = async () => {
+      const querySnapshot = await getDocs(collection(db, "events"));
+      const eventList = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setEvents(eventList);
+    };
 
-  fetchEvents();
-}, []);
+    fetchEvents();
+  }, []);
+
+  const handleDelete = async (id) => {
+    await deleteDoc(doc(db, "events", id));
+    setEvents(events.filter(e => e.id !== id));
+  };
 
   const filteredEvents =
     filter === "Wszystkie"
       ? events
-      : events.filter((event) => event.sport === filter);
+      : events.filter(event => event.sport === filter);
 
   return (
     <div>
@@ -43,15 +48,7 @@ function EventList() {
         <p>Brak wydarzeń do wyświetlenia.</p>
       ) : (
         filteredEvents.map((event) => (
-          <div
-            key={event.id}
-            style={{
-              marginBottom: "1rem",
-              padding: "1rem",
-              background: "#f5f5f5",
-              borderRadius: "8px"
-            }}
-          >
+          <div key={event.id} style={{ marginBottom: "1rem", padding: "1rem", background: "#f5f5f5", borderRadius: "8px" }}>
             <h3>{event.sport}</h3>
             <p><strong>Miejsce:</strong> {event.place}</p>
             <p><strong>Data:</strong> {event.date}</p>

@@ -1,16 +1,21 @@
-import React, { useState } from "react";
+import React from "react";
 import AddEventForm from "../AddEventForm";
+import { collection, addDoc } from "firebase/firestore";
+import { auth, db } from "../firebase";
 
 function AddEvent() {
-  const [events, setEvents] = useState(() => {
-    const stored = localStorage.getItem("events");
-    return stored ? JSON.parse(stored) : [];
-  });
-
-  const addEvent = (event) => {
-    const updated = [...events, event];
-    setEvents(updated);
-    localStorage.setItem("events", JSON.stringify(updated));
+  const addEvent = async (event) => {
+    try {
+      await addDoc(collection(db, "events"), {
+        ...event,
+        createdBy: auth.currentUser?.uid || "anon",
+        participants: [],
+      });
+      alert("Wydarzenie dodane!");
+    } catch (error) {
+      console.error("Błąd przy dodawaniu wydarzenia:", error);
+      alert("Nie udało się dodać wydarzenia.");
+    }
   };
 
   return (
