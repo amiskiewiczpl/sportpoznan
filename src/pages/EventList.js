@@ -1,94 +1,55 @@
 import React, { useEffect, useState } from "react";
-import {
-  collection,
-  getDocs,
-  deleteDoc,
-  doc,
-  updateDoc,
-  arrayUnion,
-  arrayRemove,
-} from "firebase/firestore";
+import { collection, getDocs, deleteDoc, doc, updateDoc } from "firebase/firestore";
 import { db, auth } from "../firebase";
-
-const ADMIN_EMAILS = ["admin@example.com"]; // 👈 Dodaj tu swoje maile adminów
 
 function EventList() {
   const [events, setEvents] = useState([]);
   const [filter, setFilter] = useState("Wszystkie");
-  const [userEmail, setUserEmail] = useState("");
+  const user = auth.currentUser;
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      setUserEmail(user?.email || "");
-    });
-    return () => unsubscribe();
+    const fetchEvents = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, "events"));
+        const eventList = querySnapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        }));
+        setEvents(eventList);
+      } catch (error) {
+        console.error("Błąd podczas pobierania wydarzeń:", error);
+      }
+    };
+
+    fetchEvents();
   }, []);
 
-  const fetchEvents = async () => {
-    try {
-      const querySnapshot = await getDocs(collection(db, "events"));
-      const eventList = querySnapshot.docs.map((docSnap) => {
-        const data = docSnap.data();
-        const participants = data.participants || [];
-        return {
-          id: docSnap.id,
-          ...data,
-          participants,
-          alreadyJoined: participants.includes(userEmail),
-          freeSlots: Math.max(data.slots - participants.length, 0),
-        };
-      });
-      setEvents(eventList);
-    } catch (error) {
-      console.error("Błąd podczas pobierania wydarzeń:", error);
-    }
-  };
-
-  useEffect(() => {
-    if (userEmail !== undefined) fetchEvents();
-  }, [userEmail]);
-
-  const isAdminOrOrganizer = (event) =>
-    event.createdBy === userEmail || ADMIN_EMAILS.includes(userEmail);
-
   const handleDelete = async (id) => {
-    const eventToDelete = events.find((e) => e.id === id);
-    if (!eventToDelete || !isAdminOrOrganizer(eventToDelete)) {
-      alert("Nie masz uprawnień do usunięcia tego wydarzenia.");
-      return;
-    }
-
+    const confirm = window.confirm("Czy na pewno usunąć wydarzenie?");
+    if (!confirm) return;
     try {
       await deleteDoc(doc(db, "events", id));
-      setEvents((prev) => prev.filter((e) => e.id !== id));
+      setEvents((prevEvents) => prevEvents.filter((e) => e.id !== id));
     } catch (error) {
       console.error("Błąd podczas usuwania wydarzenia:", error);
     }
   };
 
-  const handleJoinOrLeave = async (id, alreadyJoined) => {
-    if (!userEmail) {
-      alert("Zaloguj się, aby dołączyć.");
-      return;
-    }
-
+  const handleJoin = async (id) => {
     try {
-      const ref = doc(db, "events", id);
-      await updateDoc(ref, {
-        participants: alreadyJoined
-          ? arrayRemove(userEmail)
-          : arrayUnion(userEmail),
-      });
-      fetchEvents();
+      const event = events.find(e => e.id === id);
+      const isFull = (event.participants?.length || 0) >= event.slots;
+      if (isFull) return alert("Brak miejsc!");
+
+      const updated = {
+        participants: [...(event.participants || []), user.email]
+      };
+      await updateDoc(doc(db, "events", id), updated);
+      setEvents(prev => prev.map(e => e.id === id ? { ...e, ...updated } : e));
     } catch (err) {
-      console.error("Błąd przy aktualizacji uczestnictwa:", err);
+      console.error("Błąd przy dołączaniu:", err);
     }
   };
-const ADMIN_EMAILS = process.env.REACT_APP_ADMIN_EMAILS
-  ? process.env.REACT_APP_ADMIN_EMAILS.split(",")
-  : [];
-  const canDelete = (event, userEmail) =>
-  event.createdBy === userEmail || ADMIN_EMAILS.includes(userEmail);
 
   const filteredEvents =
     filter === "Wszystkie"
@@ -113,35 +74,52 @@ const ADMIN_EMAILS = process.env.REACT_APP_ADMIN_EMAILS
       {filteredEvents.length === 0 ? (
         <p>Brak wydarzeń do wyświetlenia.</p>
       ) : (
-        filteredEvents.map((event) => (
-          <div
-            key={event.id}
-            style={{
-              marginBottom: "1rem",
-              padding: "1rem",
-              background: "#f5f5f5",
-              borderRadius: "8px",
-            }}
-          >
-            <h3>{event.sport}</h3>
-            <p><strong>Miejsce:</strong> {event.place}</p>
-            <p><strong>Data:</strong> {event.date}</p>
-            <p><strong>Wolnych miejsc:</strong> {event.freeSlots} z {event.slots}</p>
+        filteredEvents.map((event) => {
+          const isOwner = event.createdBy === user?.email;
+          const isParticipant = (event.participants || []).includes(user?.email);
+          const isFull = (event.participants?.length || 0) >= event.slots;
+          const freeSlots = event.slots - (event.participants?.length || 0);
 
-            <button onClick={() => handleJoinOrLeave(event.id, event.alreadyJoined)}>
-              {event.alreadyJoined ? "❌ Opuść" : "✅ Dołącz"}
-            </button>
+          return (
+            <div
+              key={event.id}
+              style={{
+                marginBottom: "1rem",
+                padding: "1rem",
+                background: "#f5f5f5",
+                borderRadius: "8px",
+              }}
+            >
+              <h3>{event.sport}</h3>
+              <p><strong>Miejsce:</strong> {event.place}</p>
+              <p><strong>Data:</strong> {event.date}</p>
+              <p><strong>Wolnych miejsc:</strong> {freeSlots}</p>
 
-            {isAdminOrOrganizer(event) && (
-              <button
-                style={{ marginLeft: "1rem" }}
-                onClick={() => handleDelete(event.id)}
-              >
-                🗑️ Usuń
-              </button>
-            )}
-          </div>
-        ))
+              {/* Lista uczestników */}
+              {event.participants && event.participants.length > 0 && (
+                <p><strong>Uczestnicy:</strong> {event.participants.join(", ")}</p>
+              )}
+
+              {/* Akcje */}
+              {isOwner && (
+                <button onClick={() => handleDelete(event.id)}>🗑️ Usuń</button>
+              )}
+
+              {!isOwner && !isParticipant && (
+                <button
+                  onClick={() => handleJoin(event.id)}
+                  disabled={isFull}
+                >
+                  {isFull ? "🚫 Brak miejsc" : "✅ Dołącz"}
+                </button>
+              )}
+
+              {isParticipant && !isOwner && (
+                <span style={{ color: "green" }}>✅ Już zapisany</span>
+              )}
+            </div>
+          );
+        })
       )}
     </div>
   );

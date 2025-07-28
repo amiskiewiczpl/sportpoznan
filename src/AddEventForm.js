@@ -1,8 +1,7 @@
 import React, { useState } from "react";
-import { db, auth } from "./firebase";
-import { collection, addDoc } from "firebase/firestore";
+import { auth } from "./firebase";
 
-const AddEventForm = () => {
+const AddEventForm = ({ onAdd }) => {
   const [form, setForm] = useState({
     sport: "",
     place: "",
@@ -22,30 +21,27 @@ const AddEventForm = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const user = auth.currentUser;
-    if (!user) {
+    if (!auth.currentUser) {
       alert("Musisz być zalogowany, aby dodać wydarzenie.");
       return;
     }
 
-    const newEvent = {
+    const eventToAdd = {
       sport: form.sport,
       place: form.place,
       coords: [parseFloat(form.lat), parseFloat(form.lng)],
       date: form.date,
       slots: parseInt(form.slots),
-      createdBy: user.email,
-      participants: []
+      createdBy: auth.currentUser.uid,
+      participants: [],
     };
 
-    try {
-      await addDoc(collection(db, "events"), newEvent);
-      alert("✅ Wydarzenie dodane!");
-      setForm({ sport: "", place: "", lat: "", lng: "", date: "", slots: "" });
-    } catch (error) {
-      console.error("❌ Błąd podczas dodawania:", error);
-      alert("Wystąpił błąd przy zapisie.");
-    }
+    await onAdd(eventToAdd);
+
+    // Reset formularza
+    setForm({ sport: "", place: "", lat: "", lng: "", date: "", slots: "" });
+    setResults([]);
+    setSearchQuery("");
   };
 
   const handleSearch = async () => {
