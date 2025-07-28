@@ -1,11 +1,25 @@
 import React, { useEffect, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  useMap,
+} from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
-import { collection, getDocs } from "firebase/firestore";
-import { db } from "../firebase";
+import { collection, getDocs, updateDoc, doc, arrayUnion, arrayRemove } from "firebase/firestore";
+import { db, auth } from "../firebase";
 
-// Naprawienie ikon Leafleta w React
+// Ikonki sportów:
+const sportIcons = {
+  "Piłka nożna": "⚽",
+  "Siatkówka": "🏐",
+  "Squash": "🎾",
+  "Tenis": "🏓",
+};
+
+// Zresetuj domyślne ikony Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl:
@@ -13,25 +27,71 @@ L.Icon.Default.mergeOptions({
   iconUrl:
     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
   shadowUrl:
-    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png"
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
 });
 
 function MapPage() {
   const [events, setEvents] = useState([]);
   const [filter, setFilter] = useState("Wszystkie");
+  const [loading, setLoading] = useState(true);
+  const [userEmail, setUserEmail] = useState("");
+
+  // Pobierz aktualnego użytkownika
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      setUserEmail(user?.email || "");
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Pobieranie wydarzeń z Firestore
+  const fetchEvents = async () => {
+    setLoading(true);
+    try {
+      const querySnapshot = await getDocs(collection(db, "events"));
+      const eventList = querySnapshot.docs.map((docSnap) => {
+        const data = docSnap.data();
+        const participants = data.participants || [];
+        return {
+          id: docSnap.id,
+          ...data,
+          participants,
+          alreadyJoined: participants.includes(userEmail),
+          freeSlots: Math.max(data.slots - participants.length, 0),
+        };
+      });
+      setEvents(eventList);
+    } catch (err) {
+      console.error("Błąd podczas pobierania wydarzeń:", err);
+    }
+    setLoading(false);
+  };
 
   useEffect(() => {
-    const fetchEvents = async () => {
-      const querySnapshot = await getDocs(collection(db, "events"));
-      const fetched = querySnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setEvents(fetched);
-    };
+    if (userEmail !== undefined) {
+      fetchEvents();
+    }
+  }, [userEmail]);
 
-    fetchEvents();
-  }, []);
+  const handleJoinOrLeave = async (eventId, alreadyJoined) => {
+    if (!userEmail) {
+      alert("Musisz być zalogowany, aby dołączyć!");
+      return;
+    }
+
+    try {
+      const eventRef = doc(db, "events", eventId);
+      await updateDoc(eventRef, {
+        participants: alreadyJoined
+          ? arrayRemove(userEmail)
+          : arrayUnion(userEmail),
+      });
+
+      await fetchEvents(); // Odśwież po zmianie
+    } catch (err) {
+      console.error("Błąd przy aktualizacji uczestnictwa:", err);
+    }
+  };
 
   const filteredEvents =
     filter === "Wszystkie"
@@ -52,18 +112,39 @@ function MapPage() {
       </select>
 
       <div style={{ height: "70vh", width: "100%", marginTop: "1rem" }}>
-        <MapContainer center={[52.4064, 16.9252]} zoom={12} style={{ height: "100%", width: "100%" }}>
-          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-          {filteredEvents.map((event) => (
-            <Marker key={event.id} position={event.coords}>
-              <Popup>
-                <strong>{event.sport}</strong><br />
-                {event.place}<br />
-                📅 {event.date}
-              </Popup>
-            </Marker>
-          ))}
-        </MapContainer>
+        {loading ? (
+          <div style={{ textAlign: "center", marginTop: "2rem" }}>
+            ⏳ Ładowanie wydarzeń...
+          </div>
+        ) : (
+          <MapContainer
+            center={[52.4064, 16.9252]}
+            zoom={12}
+            style={{ height: "100%", width: "100%" }}
+          >
+            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+            {filteredEvents.map((event) => (
+              <Marker key={event.id} position={event.coords}>
+                <Popup>
+                  <div style={{ fontSize: "1rem" }}>
+                    <strong>{sportIcons[event.sport] || "📍"} {event.sport}</strong><br />
+                    📍 {event.place}<br />
+                    📅 {event.date}<br />
+                    👥 {event.freeSlots} wolnych z {event.slots}
+                    <br />
+                    <button
+                      onClick={() =>
+                        handleJoinOrLeave(event.id, event.alreadyJoined)
+                      }
+                    >
+                      {event.alreadyJoined ? "❌ Opuść" : "✅ Dołącz"}
+                    </button>
+                  </div>
+                </Popup>
+              </Marker>
+            ))}
+          </MapContainer>
+        )}
       </div>
     </div>
   );
