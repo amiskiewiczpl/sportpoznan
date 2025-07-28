@@ -30,6 +30,17 @@ function EditEvent() {
     };
     init();
   }, []);
+useEffect(() => {
+  const init = async () => {
+    try {
+      await loadGoogleMaps();
+      setGmapsReady(true);
+    } catch (err) {
+      console.error("❌ Nie udało się załadować Google Maps:", err);
+    }
+  };
+  init();
+}, []);
 
   useEffect(() => {
     const fetchEvent = async () => {
