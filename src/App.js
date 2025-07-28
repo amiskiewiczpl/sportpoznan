@@ -5,7 +5,7 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 
 import NavbarUserInfo from "./components/NavbarUserInfo";
 import { auth, db } from "./firebase";
-
+import EditEvent from "./pages/EditEvent";
 import HomePage from "./pages/HomePage";
 import AddEvent from "./pages/AddEvent";
 import EventList from "./pages/EventList";
@@ -64,6 +64,7 @@ function App() {
           <Route path="/mapa" element={<MapPage />} />
           <Route path="/profil" element={<Profile />} />
           <Route path="/twoje" element={<YourEvents />} />
+          <Route path="/edytuj/:id" element={<EditEvent />} />
         </Routes>
       </div>
     </Router>

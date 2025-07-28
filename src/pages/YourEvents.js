@@ -7,18 +7,22 @@ import {
   updateDoc,
   deleteDoc
 } from "firebase/firestore";
+import { useNavigate } from "react-router-dom";
 
 function YourEvents() {
+  const navigate = useNavigate(); // 🔧 musi być wewnątrz komponentu!
   const [yourEvents, setYourEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [user, setUser] = useState(undefined); // ważne: undefined na start
+  const [user, setUser] = useState(undefined); // undefined = jeszcze nie wiemy
 
+  // Słuchaj zmian zalogowanego użytkownika
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(setUser);
     return () => unsubscribe();
   }, []);
 
+  // Pobierz wydarzenia użytkownika
   useEffect(() => {
     const fetchEvents = async () => {
       if (!user) {
@@ -108,11 +112,17 @@ function YourEvents() {
               <p><strong>Data:</strong> {event.date}</p>
               <p><strong>Wolnych miejsc:</strong> {freeSlots}</p>
 
+              {/* Jeśli uczestnik (w tym właściciel) – może zrezygnować */}
               {isParticipant && (
                 <button onClick={() => handleLeave(event.id)}>🚪 Zrezygnuj</button>
               )}
+
+              {/* Jeśli właściciel – może usunąć lub edytować */}
               {isOwner && (
-                <button onClick={() => handleDelete(event.id)}>🗑️ Usuń wydarzenie</button>
+                <>
+                  <button onClick={() => handleDelete(event.id)}>🗑️ Usuń wydarzenie</button>
+                  <button onClick={() => navigate(`/edytuj/${event.id}`)}>✏️ Edytuj</button>
+                </>
               )}
             </div>
           );
