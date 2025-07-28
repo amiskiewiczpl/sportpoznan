@@ -1,154 +1,86 @@
-import React, { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { db, auth } from "../firebase";
+import React, { useState, useEffect } from "react";
 import PlacesAutocomplete, { geocodeByAddress, getLatLng } from "react-places-autocomplete";
 import { loadGoogleMaps } from "../helpers/loadGoogleMaps";
 
-const adminEmails = process.env.REACT_APP_ADMIN_EMAILS?.split(",") || [];
+function AddEvent({ onAdd }) {
+  const [form, setForm] = useState({
+    sport: "",
+    place: "",
+    date: "",
+    slots: 1,
+    coords: null
+  });
 
-function EditEvent() {
-  const { id } = useParams();
-  const navigate = useNavigate();
-  const [form, setForm] = useState(null);
-  const [user, setUser] = useState(undefined);
   const [gmapsReady, setGmapsReady] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(setUser);
-    return () => unsubscribe();
+    loadGoogleMaps().then(() => setGmapsReady(true)).catch(err => {
+      console.error("❌ Google Maps JS error:", err);
+    });
   }, []);
-
-  useEffect(() => {
-    const init = async () => {
-      try {
-        await loadGoogleMaps();
-        setGmapsReady(true);
-      } catch (err) {
-        console.error("❌ Nie udało się załadować Google Maps:", err);
-      }
-    };
-    init();
-  }, []);
-
-  useEffect(() => {
-    const fetchEvent = async () => {
-      const ref = doc(db, "events", id);
-      const snap = await getDoc(ref);
-      if (snap.exists()) {
-        const data = snap.data();
-        const isCreator = auth.currentUser?.uid === data.createdBy;
-        const isAdmin = adminEmails.includes(auth.currentUser?.email);
-
-        if (!isCreator && !isAdmin) {
-          alert("Nie masz uprawnień do edycji tego wydarzenia.");
-          navigate("/wydarzenia");
-          return;
-        }
-
-        setForm(data);
-      } else {
-        alert("Nie ma takiego wydarzenia.");
-        navigate("/wydarzenia");
-      }
-    };
-
-    if (user && gmapsReady) fetchEvent();
-  }, [user, gmapsReady, id, navigate]);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handlePlaceChange = (address) => {
-    setForm((f) => ({ ...f, place: address }));
-  };
-
   const handleSelect = async (address) => {
     try {
+      setForm((prev) => ({ ...prev, place: address }));
       const results = await geocodeByAddress(address);
       const latLng = await getLatLng(results[0]);
-
-      setForm((f) => ({
-        ...f,
-        place: address,
-        coords: latLng,
-      }));
-    } catch (error) {
-      console.error("Błąd geokodowania:", error);
+      setForm((prev) => ({ ...prev, coords: latLng }));
+    } catch (err) {
+      console.error("Błąd geokodowania:", err);
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.coords || !form.coords.lat || !form.coords.lng) {
-      alert("Musisz wybrać lokalizację z podpowiedzi.");
+    if (!form.place || !form.coords) {
+      alert("Wybierz lokalizację z podpowiedzi!");
       return;
     }
-
-    await updateDoc(doc(db, "events", id), {
-      sport: form.sport,
-      place: form.place,
-      date: form.date,
-      slots: parseInt(form.slots),
-      coords: form.coords,
-    });
-
-    alert("✅ Zapisano zmiany!");
-    navigate("/twoje");
+    onAdd(form);
   };
 
-  if (user === undefined || form === null || !gmapsReady)
-    return <p>⏳ Ładowanie...</p>;
+  if (!gmapsReady) return <p>⏳ Ładowanie mapy...</p>;
 
   return (
     <form onSubmit={handleSubmit}>
-      <h2>✏️ Edytuj wydarzenie</h2>
-
       <label>Sport:</label><br />
       <input name="sport" value={form.sport} onChange={handleChange} /><br />
 
       <label>Miejsce:</label><br />
       <PlacesAutocomplete
         value={form.place}
-        onChange={handlePlaceChange}
+        onChange={(address) => setForm({ ...form, place: address })}
         onSelect={handleSelect}
       >
         {({ getInputProps, suggestions, getSuggestionItemProps, loading }) => (
           <div>
-            <input
-              {...getInputProps({ placeholder: "Wpisz nazwę obiektu sportowego..." })}
-              style={{ padding: "0.5rem", width: "100%", marginBottom: "0.5rem" }}
-            />
-            <div>
-              {loading && <div>⏳ Szukam miejsc...</div>}
-              {suggestions.map((s, i) => (
-                <div
-                  key={i}
-                  {...getSuggestionItemProps(s)}
-                  style={{
-                    backgroundColor: s.active ? "#fafafa" : "#fff",
-                    padding: "0.5rem",
-                    cursor: "pointer",
-                  }}
-                >
-                  {s.description}
+            <input {...getInputProps({ placeholder: "Wpisz miejsce..." })} />
+            <div style={{ background: "#fff", border: "1px solid #ccc" }}>
+              {loading && <div>Ładowanie...</div>}
+              {suggestions.map((sug) => (
+                <div {...getSuggestionItemProps(sug)} key={sug.placeId}>
+                  {sug.description}
                 </div>
               ))}
             </div>
           </div>
         )}
-      </PlacesAutocomplete><br />
+      </PlacesAutocomplete>
 
+      <br />
       <label>Data:</label><br />
       <input type="datetime-local" name="date" value={form.date} onChange={handleChange} /><br />
 
       <label>Liczba miejsc:</label><br />
       <input type="number" name="slots" value={form.slots} onChange={handleChange} /><br /><br />
 
-      <button type="submit">💾 Zapisz</button>
+      <button type="submit">➕ Dodaj</button>
     </form>
   );
 }
 
-export default EditEvent;
+export default AddEvent;
