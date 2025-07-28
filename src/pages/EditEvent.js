@@ -3,8 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db, auth } from "../firebase";
 import PlacesAutocomplete, { geocodeByAddress, getLatLng } from "react-places-autocomplete";
-import { useEffect } from "react";
-import { loadGoogleMaps } from "../utils/loadGoogleMaps"; // dostosuj ścieżkę
+import { loadGoogleMaps } from "../helpers/loadGoogleMaps"; // dostosuj ścieżkę
 
 const adminEmails = process.env.REACT_APP_ADMIN_EMAILS?.split(",") || [];
 

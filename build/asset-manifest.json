@@ -1,0 +1,13 @@
+{
+  "files": {
+    "main.css": "/sportpoznan/static/css/main.2e662a65.css",
+    "main.js": "/sportpoznan/static/js/main.cd7b3e1e.js",
+    "index.html": "/sportpoznan/index.html",
+    "main.2e662a65.css.map": "/sportpoznan/static/css/main.2e662a65.css.map",
+    "main.cd7b3e1e.js.map": "/sportpoznan/static/js/main.cd7b3e1e.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.2e662a65.css",
+    "static/js/main.cd7b3e1e.js"
+  ]
+}
