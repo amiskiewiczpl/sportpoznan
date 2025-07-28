@@ -3,6 +3,7 @@ import PlacesAutocomplete, { geocodeByAddress, getLatLng } from "react-places-au
 import { loadGoogleMaps } from "../helpers/loadGoogleMaps";
 
 function AddEventForm({ onAdd }) {
+  const [gmapsReady, setGmapsReady] = useState(false);
   const [form, setForm] = useState({
     sport: "",
     place: "",
@@ -11,14 +12,10 @@ function AddEventForm({ onAdd }) {
     coords: null
   });
 
-  const [gmapsReady, setGmapsReady] = useState(false);
-
   useEffect(() => {
     loadGoogleMaps()
       .then(() => setGmapsReady(true))
-      .catch((err) => {
-        console.error("❌ Google Maps JS error:", err);
-      });
+      .catch(err => console.error("❌ Google Maps load error:", err));
   }, []);
 
   const handleChange = (e) => {
@@ -26,14 +23,10 @@ function AddEventForm({ onAdd }) {
   };
 
   const handleSelect = async (address) => {
-    try {
-      setForm((prev) => ({ ...prev, place: address }));
-      const results = await geocodeByAddress(address);
-      const latLng = await getLatLng(results[0]);
-      setForm((prev) => ({ ...prev, coords: latLng }));
-    } catch (err) {
-      console.error("Błąd geokodowania:", err);
-    }
+    setForm((prev) => ({ ...prev, place: address }));
+    const results = await geocodeByAddress(address);
+    const latLng = await getLatLng(results[0]);
+    setForm((prev) => ({ ...prev, coords: latLng }));
   };
 
   const handleSubmit = (e) => {
@@ -69,8 +62,8 @@ function AddEventForm({ onAdd }) {
             <input {...getInputProps({ placeholder: "Wpisz miejsce..." })} />
             <div style={{ background: "#fff", border: "1px solid #ccc" }}>
               {loading && <div>Ładowanie...</div>}
-              {suggestions.map((sug, i) => (
-                <div {...getSuggestionItemProps(sug)} key={i}>
+              {suggestions.map((sug) => (
+                <div {...getSuggestionItemProps(sug)} key={sug.placeId}>
                   {sug.description}
                 </div>
               ))}
