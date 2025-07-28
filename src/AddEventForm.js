@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { db } from "./firebase";
+import { db, auth } from "./firebase";
 import { collection, addDoc } from "firebase/firestore";
 
 const AddEventForm = () => {
@@ -22,12 +22,20 @@ const AddEventForm = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    const user = auth.currentUser;
+    if (!user) {
+      alert("Musisz być zalogowany, aby dodać wydarzenie.");
+      return;
+    }
+
     const newEvent = {
       sport: form.sport,
       place: form.place,
       coords: [parseFloat(form.lat), parseFloat(form.lng)],
       date: form.date,
-      slots: parseInt(form.slots)
+      slots: parseInt(form.slots),
+      createdBy: user.email,
+      participants: []
     };
 
     try {

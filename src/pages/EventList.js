@@ -10,87 +10,85 @@ import {
 } from "firebase/firestore";
 import { db, auth } from "../firebase";
 
+const ADMIN_EMAILS = ["admin@example.com"]; // 👈 Dodaj tu swoje maile adminów
+
 function EventList() {
   const [events, setEvents] = useState([]);
   const [filter, setFilter] = useState("Wszystkie");
-  const [userEmail, setUserEmail] = useState(null);
+  const [userEmail, setUserEmail] = useState("");
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
-      setUserEmail(user?.email || null);
+      setUserEmail(user?.email || "");
     });
-
     return () => unsubscribe();
   }, []);
 
-  useEffect(() => {
-    const fetchEvents = async () => {
-      try {
-        const querySnapshot = await getDocs(collection(db, "events"));
-        const eventList = querySnapshot.docs.map((docSnap) => {
-          const data = docSnap.data();
-          const participants = data.participants || [];
-          return {
-            id: docSnap.id,
-            ...data,
-            participants,
-            alreadyJoined: participants.includes(userEmail),
-            freeSlots: Math.max(data.slots - participants.length, 0),
-          };
-        });
-        setEvents(eventList);
-      } catch (error) {
-        console.error("Błąd podczas pobierania wydarzeń:", error);
-      }
-    };
+  const fetchEvents = async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, "events"));
+      const eventList = querySnapshot.docs.map((docSnap) => {
+        const data = docSnap.data();
+        const participants = data.participants || [];
+        return {
+          id: docSnap.id,
+          ...data,
+          participants,
+          alreadyJoined: participants.includes(userEmail),
+          freeSlots: Math.max(data.slots - participants.length, 0),
+        };
+      });
+      setEvents(eventList);
+    } catch (error) {
+      console.error("Błąd podczas pobierania wydarzeń:", error);
+    }
+  };
 
+  useEffect(() => {
     if (userEmail !== undefined) fetchEvents();
   }, [userEmail]);
 
+  const isAdminOrOrganizer = (event) =>
+    event.createdBy === userEmail || ADMIN_EMAILS.includes(userEmail);
+
   const handleDelete = async (id) => {
+    const eventToDelete = events.find((e) => e.id === id);
+    if (!eventToDelete || !isAdminOrOrganizer(eventToDelete)) {
+      alert("Nie masz uprawnień do usunięcia tego wydarzenia.");
+      return;
+    }
+
     try {
       await deleteDoc(doc(db, "events", id));
-      setEvents((prevEvents) => prevEvents.filter((e) => e.id !== id));
+      setEvents((prev) => prev.filter((e) => e.id !== id));
     } catch (error) {
       console.error("Błąd podczas usuwania wydarzenia:", error);
     }
   };
 
-  const handleJoinOrLeave = async (eventId, alreadyJoined) => {
+  const handleJoinOrLeave = async (id, alreadyJoined) => {
     if (!userEmail) {
-      alert("Musisz być zalogowany, aby dołączyć!");
+      alert("Zaloguj się, aby dołączyć.");
       return;
     }
 
-    const eventRef = doc(db, "events", eventId);
-
     try {
-      await updateDoc(eventRef, {
+      const ref = doc(db, "events", id);
+      await updateDoc(ref, {
         participants: alreadyJoined
           ? arrayRemove(userEmail)
           : arrayUnion(userEmail),
       });
-
-      setEvents((prev) =>
-        prev.map((e) => {
-          if (e.id !== eventId) return e;
-
-          const updatedParticipants = alreadyJoined
-            ? e.participants.filter((email) => email !== userEmail)
-            : [...e.participants, userEmail];
-
-          return {
-            ...e,
-            participants: updatedParticipants,
-            alreadyJoined: !alreadyJoined,
-            freeSlots: Math.max(e.slots - updatedParticipants.length, 0),
-          };
-        })
-      );
+      fetchEvents();
     } catch (err) {
       console.error("Błąd przy aktualizacji uczestnictwa:", err);
     }
   };
+const ADMIN_EMAILS = process.env.REACT_APP_ADMIN_EMAILS
+  ? process.env.REACT_APP_ADMIN_EMAILS.split(",")
+  : [];
+  const canDelete = (event, userEmail) =>
+  event.createdBy === userEmail || ADMIN_EMAILS.includes(userEmail);
 
   const filteredEvents =
     filter === "Wszystkie"
@@ -126,23 +124,22 @@ function EventList() {
             }}
           >
             <h3>{event.sport}</h3>
-            <p>
-              <strong>Miejsce:</strong> {event.place}
-            </p>
-            <p>
-              <strong>Data:</strong> {event.date}
-            </p>
-            <p>
-              <strong>Wolnych miejsc:</strong> {event.freeSlots}
-            </p>
-            <button onClick={() => handleDelete(event.id)}>🗑️ Usuń</button>{" "}
-            <button
-              onClick={() =>
-                handleJoinOrLeave(event.id, event.alreadyJoined)
-              }
-            >
+            <p><strong>Miejsce:</strong> {event.place}</p>
+            <p><strong>Data:</strong> {event.date}</p>
+            <p><strong>Wolnych miejsc:</strong> {event.freeSlots} z {event.slots}</p>
+
+            <button onClick={() => handleJoinOrLeave(event.id, event.alreadyJoined)}>
               {event.alreadyJoined ? "❌ Opuść" : "✅ Dołącz"}
             </button>
+
+            {isAdminOrOrganizer(event) && (
+              <button
+                style={{ marginLeft: "1rem" }}
+                onClick={() => handleDelete(event.id)}
+              >
+                🗑️ Usuń
+              </button>
+            )}
           </div>
         ))
       )}
