@@ -3,7 +3,7 @@ import {
   MapContainer,
   TileLayer,
   Marker,
-  Popup
+  Popup,
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
@@ -11,21 +11,21 @@ import {
   collection,
   getDocs,
   updateDoc,
+  deleteDoc,
   doc,
   arrayUnion,
-  arrayRemove
+  arrayRemove,
 } from "firebase/firestore";
 import { db, auth } from "../firebase";
+import { useNavigate } from "react-router-dom";
 
-// Ikonki sportów
 const sportIcons = {
   "Piłka nożna": "⚽",
   "Siatkówka": "🏐",
-  "Squash": "🎾",
-  "Tenis": "🏓",
+  Squash: "🏳",
+  Tenis: "🏓",
 };
 
-// Naprawienie ikon Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl:
@@ -41,10 +41,10 @@ function MapPage() {
   const [filter, setFilter] = useState("Wszystkie");
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
+  const navigate = useNavigate();
 
-  // Obserwacja zalogowanego użytkownika
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((u) => setUser(u));
+    const unsubscribe = auth.onAuthStateChanged(setUser);
     return () => unsubscribe();
   }, []);
 
@@ -52,57 +52,73 @@ function MapPage() {
     setLoading(true);
     try {
       const snapshot = await getDocs(collection(db, "events"));
-      const data = snapshot.docs.map((docSnap) => {
-        const event = docSnap.data();
-        const participants = event.participants || [];
+      const list = snapshot.docs.map((docSnap) => {
+        const data = docSnap.data();
+        const participants = data.participants || [];
         return {
           id: docSnap.id,
-          ...event,
+          ...data,
           participants,
-          alreadyJoined: user ? participants.includes(user.uid) : false,
-          freeSlots: Math.max(event.slots - participants.length, 0),
+          alreadyJoined: participants.includes(user?.uid),
+          freeSlots: Math.max(data.slots - participants.length, 0),
         };
       });
-      setEvents(data);
+      setEvents(list);
     } catch (err) {
-      console.error("Błąd podczas pobierania:", err);
+      console.error("Błąd pobierania wydarzeń:", err);
     }
     setLoading(false);
   };
 
   useEffect(() => {
-    if (user !== undefined) {
-      fetchEvents();
-    }
+    if (user !== undefined) fetchEvents();
   }, [user]);
 
-  const handleJoinOrLeave = async (eventId, alreadyJoined) => {
-    if (!user) {
-      alert("Zaloguj się, aby dołączyć.");
-      return;
-    }
+  const handleJoinOrLeave = async (event) => {
+    if (!user) return alert("Zaloguj się, żeby dołączyć!");
 
+    const eventRef = doc(db, "events", event.id);
     try {
-      const ref = doc(db, "events", eventId);
-      await updateDoc(ref, {
-        participants: alreadyJoined
-          ? arrayRemove(user.uid)
-          : arrayUnion(user.uid),
-      });
+      if (event.alreadyJoined) {
+        await updateDoc(eventRef, {
+          participants: arrayRemove(user.uid),
+        });
+      } else {
+        if (event.participants.length >= event.slots) {
+          return alert("Brak wolnych miejsc!");
+        }
+        await updateDoc(eventRef, {
+          participants: arrayUnion(user.uid),
+        });
+      }
       await fetchEvents();
     } catch (err) {
-      console.error("Błąd przy aktualizacji uczestnictwa:", err);
+      console.error("Błąd przy dołączaniu/wychodzeniu:", err);
+    }
+  };
+
+  const handleDelete = async (eventId) => {
+    const confirm = window.confirm("Na pewno usunąć wydarzenie?");
+    if (!confirm) return;
+    try {
+      await deleteDoc(doc(db, "events", eventId));
+      await fetchEvents();
+    } catch (err) {
+      console.error("Błąd przy usuwaniu:", err);
     }
   };
 
   const filteredEvents =
     filter === "Wszystkie"
       ? events
-      : events.filter((event) => event.sport === filter);
+      : events.filter((e) => e.sport === filter);
+
+  const adminEmails = process.env.REACT_APP_ADMIN_EMAILS?.split(",") || [];
+  const isAdmin = adminEmails.includes(user?.email);
 
   return (
     <div>
-      <h2>🗺️ Mapa wydarzeń</h2>
+      <h2>📺 Mapa wydarzeń</h2>
 
       <label>Filtruj po sporcie:</label>{" "}
       <select value={filter} onChange={(e) => setFilter(e.target.value)}>
@@ -115,9 +131,7 @@ function MapPage() {
 
       <div style={{ height: "70vh", width: "100%", marginTop: "1rem" }}>
         {loading ? (
-          <div style={{ textAlign: "center", marginTop: "2rem" }}>
-            ⏳ Ładowanie wydarzeń...
-          </div>
+          <p style={{ textAlign: "center" }}>⏳ Ładowanie wydarzeń...</p>
         ) : (
           <MapContainer
             center={[52.4064, 16.9252]}
@@ -125,26 +139,49 @@ function MapPage() {
             style={{ height: "100%", width: "100%" }}
           >
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-            {filteredEvents.map((event) => (
-              <Marker key={event.id} position={event.coords}>
-                <Popup>
-                  <div style={{ fontSize: "1rem" }}>
-                    <strong>{sportIcons[event.sport] || "📍"} {event.sport}</strong><br />
-                    📍 {event.place}<br />
-                    📅 {event.date}<br />
-                    👥 {event.freeSlots} wolnych z {event.slots}
-                    <br />
-                    <button
-                      onClick={() =>
-                        handleJoinOrLeave(event.id, event.alreadyJoined)
-                      }
-                    >
-                      {event.alreadyJoined ? "❌ Opuść" : "✅ Dołącz"}
-                    </button>
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
+            {filteredEvents.map((event) => {
+              const canManage =
+                user &&
+                (event.createdBy === user.uid || isAdmin);
+
+              return (
+                <Marker key={event.id} position={event.coords}>
+                  <Popup>
+                    <div style={{ fontSize: "1rem" }}>
+                      <strong>
+                        {sportIcons[event.sport] || "📍"} {event.sport}
+                      </strong>
+                      <br />📍 {event.place}
+                      <br />📅 {event.date}
+                      <br />👥 {event.freeSlots} z {event.slots}
+                      <br />
+                      {user && (
+                        <button
+                          onClick={() => handleJoinOrLeave(event)}
+                        >
+                          {event.alreadyJoined ? "❌ Opuść" : "✅ Dołącz"}
+                        </button>
+                      )}
+                      {canManage && (
+                        <>
+                          <br />
+                          <button
+                            onClick={() => handleDelete(event.id)}
+                          >
+                            🗑️ Usuń
+                          </button>
+                          <button
+                            onClick={() => navigate(`/edytuj/${event.id}`)}
+                          >
+                            ✏️ Edytuj
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            })}
           </MapContainer>
         )}
       </div>
