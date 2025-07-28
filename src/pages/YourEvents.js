@@ -10,19 +10,17 @@ import {
 import { useNavigate } from "react-router-dom";
 
 function YourEvents() {
-  const navigate = useNavigate(); // 🔧 musi być wewnątrz komponentu!
+  const navigate = useNavigate();
   const [yourEvents, setYourEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [user, setUser] = useState(undefined); // undefined = jeszcze nie wiemy
 
-  // Słuchaj zmian zalogowanego użytkownika
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(setUser);
     return () => unsubscribe();
   }, []);
 
-  // Pobierz wydarzenia użytkownika
   useEffect(() => {
     const fetchEvents = async () => {
       if (!user) {
@@ -86,6 +84,9 @@ function YourEvents() {
     return <p>🔒 Musisz być zalogowany, aby zobaczyć swoje wydarzenia.</p>;
   }
 
+  const adminEmails = process.env.REACT_APP_ADMIN_EMAILS?.split(",") || [];
+  const isAdmin = adminEmails.includes(user.email);
+
   return (
     <div>
       <h2>🧾 Twoje wydarzenia</h2>
@@ -96,6 +97,7 @@ function YourEvents() {
           const isOwner = event.createdBy === user.uid;
           const isParticipant = (event.participants || []).includes(user.uid);
           const freeSlots = event.slots - (event.participants?.length || 0);
+          const canManage = isOwner || isAdmin;
 
           return (
             <div
@@ -112,13 +114,11 @@ function YourEvents() {
               <p><strong>Data:</strong> {event.date}</p>
               <p><strong>Wolnych miejsc:</strong> {freeSlots}</p>
 
-              {/* Jeśli uczestnik (w tym właściciel) – może zrezygnować */}
               {isParticipant && (
                 <button onClick={() => handleLeave(event.id)}>🚪 Zrezygnuj</button>
               )}
 
-              {/* Jeśli właściciel – może usunąć lub edytować */}
-              {isOwner && (
+              {canManage && (
                 <>
                   <button onClick={() => handleDelete(event.id)}>🗑️ Usuń wydarzenie</button>
                   <button onClick={() => navigate(`/edytuj/${event.id}`)}>✏️ Edytuj</button>
