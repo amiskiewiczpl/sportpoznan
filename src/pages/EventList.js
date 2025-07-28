@@ -1,3 +1,4 @@
+// EventList.js
 import React, { useEffect, useState } from "react";
 import {
   collection,
@@ -7,6 +8,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { db, auth } from "../firebase";
+import { useNavigate } from "react-router-dom";
 
 const adminEmails = process.env.REACT_APP_ADMIN_EMAILS?.split(",") || [];
 
@@ -14,6 +16,7 @@ function EventList() {
   const [events, setEvents] = useState([]);
   const [filter, setFilter] = useState("Wszystkie");
   const [currentUser, setCurrentUser] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -22,43 +25,36 @@ function EventList() {
     return () => unsubscribe();
   }, []);
 
-  useEffect(() => {
-    const fetchEvents = async () => {
-      const querySnapshot = await getDocs(collection(db, "events"));
-      const eventList = querySnapshot.docs.map((docSnap) => ({
-        id: docSnap.id,
-        ...docSnap.data(),
-      }));
-      setEvents(eventList);
-    };
+  const fetchEvents = async () => {
+    const querySnapshot = await getDocs(collection(db, "events"));
+    const eventList = querySnapshot.docs.map((docSnap) => ({
+      id: docSnap.id,
+      ...docSnap.data(),
+    }));
+    setEvents(eventList);
+  };
 
+  useEffect(() => {
     fetchEvents();
   }, []);
 
   const handleJoin = async (event) => {
     if (!currentUser) return alert("Zaloguj się, aby dołączyć!");
 
-    if (event.participants?.includes(currentUser.uid)) {
-      // Rezygnacja
-      const updated = event.participants.filter((id) => id !== currentUser.uid);
-      await updateDoc(doc(db, "events", event.id), { participants: updated });
-    } else {
-      if (event.participants?.length >= event.slots) {
-        alert("Brak wolnych miejsc!");
-        return;
-      }
-      const updated = [...(event.participants || []), currentUser.uid];
-      await updateDoc(doc(db, "events", event.id), { participants: updated });
+    const ref = doc(db, "events", event.id);
+    const isJoined = event.participants?.includes(currentUser.uid);
+
+    const updated = isJoined
+      ? event.participants.filter((id) => id !== currentUser.uid)
+      : [...(event.participants || []), currentUser.uid];
+
+    if (!isJoined && event.participants?.length >= event.slots) {
+      alert("Brak wolnych miejsc!");
+      return;
     }
 
-    // Refresh listy
-    const querySnapshot = await getDocs(collection(db, "events"));
-    setEvents(
-      querySnapshot.docs.map((docSnap) => ({
-        id: docSnap.id,
-        ...docSnap.data(),
-      }))
-    );
+    await updateDoc(ref, { participants: updated });
+    fetchEvents();
   };
 
   const handleDelete = async (event) => {
@@ -99,47 +95,29 @@ function EventList() {
         filteredEvents.map((event) => {
           const isParticipant = event.participants?.includes(currentUser?.uid);
           const freeSlots = event.slots - (event.participants?.length || 0);
-
-          const canDelete =
+          const canManage =
             currentUser &&
             (event.createdBy === currentUser.uid ||
               adminEmails.includes(currentUser.email));
 
           return (
-            <div
-              key={event.id}
-              style={{
-                marginBottom: "1rem",
-                padding: "1rem",
-                background: "#f5f5f5",
-                borderRadius: "8px",
-              }}
-            >
+            <div key={event.id} style={{ marginBottom: "1rem", padding: "1rem", background: "#f5f5f5", borderRadius: "8px" }}>
               <h3>{event.sport}</h3>
-              <p>
-                <strong>Miejsce:</strong> {event.place}
-              </p>
-              <p>
-                <strong>Data:</strong> {event.date}
-              </p>
-              <p>
-                <strong>Wolnych miejsc:</strong> {freeSlots}
-              </p>
-              <p>
-                <strong>Uczestnicy:</strong>{" "}
-                {event.participants?.length > 0
-                  ? event.participants.length
-                  : "Brak"}
-              </p>
+              <p><strong>Miejsce:</strong> {event.place}</p>
+              <p><strong>Data:</strong> {event.date}</p>
+              <p><strong>Wolnych miejsc:</strong> {freeSlots}</p>
+              <p><strong>Uczestnicy:</strong> {event.participants?.length || "Brak"}</p>
 
               {currentUser && (
                 <button onClick={() => handleJoin(event)}>
                   {isParticipant ? "🚪 Opuść" : "✅ Dołącz"}
                 </button>
               )}
-
-              {canDelete && (
-                <button onClick={() => handleDelete(event)}>🗑️ Usuń</button>
+              {canManage && (
+                <>
+                  <button onClick={() => handleDelete(event)}>🗑️ Usuń</button>
+                  <button onClick={() => navigate(`/edytuj/${event.id}`)}>✏️ Edytuj</button>
+                </>
               )}
             </div>
           );
