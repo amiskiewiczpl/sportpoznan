@@ -38,3 +38,17 @@ export {
   doc,
   getDoc
 };
+export const toggleParticipant = async (eventId, userId) => {
+  const eventRef = doc(db, "events", eventId);
+  const eventSnap = await getDoc(eventRef);
+  if (!eventSnap.exists()) return;
+
+  const data = eventSnap.data();
+  const current = data.participants || [];
+
+  const updated = current.includes(userId)
+    ? current.filter((id) => id !== userId)
+    : [...current, userId];
+
+  await setDoc(eventRef, { participants: updated }, { merge: true });
+};

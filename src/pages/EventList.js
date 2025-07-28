@@ -1,21 +1,23 @@
 import React, { useEffect, useState } from "react";
+import { auth, db, toggleParticipant } from "../firebase";
+import { collection, getDocs } from "firebase/firestore";
 
 function EventList() {
   const [events, setEvents] = useState([]);
   const [filter, setFilter] = useState("Wszystkie");
 
   useEffect(() => {
-    const stored = localStorage.getItem("events");
-    if (stored) {
-      setEvents(JSON.parse(stored));
-    }
-  }, []);
-
-  const handleDelete = (id) => {
-    const updated = events.filter((event) => event.id !== id);
-    setEvents(updated);
-    localStorage.setItem("events", JSON.stringify(updated));
+  const fetchEvents = async () => {
+    const querySnapshot = await getDocs(collection(db, "events"));
+    const eventsData = [];
+    querySnapshot.forEach((doc) => {
+      eventsData.push({ id: doc.id, ...doc.data() });
+    });
+    setEvents(eventsData);
   };
+
+  fetchEvents();
+}, []);
 
   const filteredEvents =
     filter === "Wszystkie"
