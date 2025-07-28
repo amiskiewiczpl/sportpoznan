@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import PlacesAutocomplete, { geocodeByAddress, getLatLng } from "react-places-autocomplete";
 import { loadGoogleMaps } from "../helpers/loadGoogleMaps";
 
-function AddEvent({ onAdd }) {
+function AddEventForm({ onAdd }) {
   const [form, setForm] = useState({
     sport: "",
     place: "",
@@ -14,9 +14,11 @@ function AddEvent({ onAdd }) {
   const [gmapsReady, setGmapsReady] = useState(false);
 
   useEffect(() => {
-    loadGoogleMaps().then(() => setGmapsReady(true)).catch(err => {
-      console.error("❌ Google Maps JS error:", err);
-    });
+    loadGoogleMaps()
+      .then(() => setGmapsReady(true))
+      .catch((err) => {
+        console.error("❌ Google Maps JS error:", err);
+      });
   }, []);
 
   const handleChange = (e) => {
@@ -48,7 +50,13 @@ function AddEvent({ onAdd }) {
   return (
     <form onSubmit={handleSubmit}>
       <label>Sport:</label><br />
-      <input name="sport" value={form.sport} onChange={handleChange} /><br />
+      <select name="sport" value={form.sport} onChange={handleChange} required>
+        <option value="">-- Wybierz sport --</option>
+        <option value="Piłka nożna">Piłka nożna</option>
+        <option value="Siatkówka">Siatkówka</option>
+        <option value="Squash">Squash</option>
+        <option value="Tenis">Tenis</option>
+      </select><br /><br />
 
       <label>Miejsce:</label><br />
       <PlacesAutocomplete
@@ -61,8 +69,8 @@ function AddEvent({ onAdd }) {
             <input {...getInputProps({ placeholder: "Wpisz miejsce..." })} />
             <div style={{ background: "#fff", border: "1px solid #ccc" }}>
               {loading && <div>Ładowanie...</div>}
-              {suggestions.map((sug) => (
-                <div {...getSuggestionItemProps(sug)} key={sug.placeId}>
+              {suggestions.map((sug, i) => (
+                <div {...getSuggestionItemProps(sug)} key={i}>
                   {sug.description}
                 </div>
               ))}
@@ -83,4 +91,4 @@ function AddEvent({ onAdd }) {
   );
 }
 
-export default AddEvent;
+export default AddEventForm;
