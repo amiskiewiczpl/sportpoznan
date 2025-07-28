@@ -6,6 +6,7 @@ import {
   doc,
   updateDoc,
   arrayUnion,
+  arrayRemove,
 } from "firebase/firestore";
 import { db, auth } from "../firebase";
 
@@ -28,10 +29,13 @@ function EventList() {
         const querySnapshot = await getDocs(collection(db, "events"));
         const eventList = querySnapshot.docs.map((docSnap) => {
           const data = docSnap.data();
+          const participants = data.participants || [];
           return {
             id: docSnap.id,
             ...data,
-            alreadyJoined: data.participants?.includes(userEmail),
+            participants,
+            alreadyJoined: participants.includes(userEmail),
+            freeSlots: Math.max(data.slots - participants.length, 0),
           };
         });
         setEvents(eventList);
@@ -44,12 +48,6 @@ function EventList() {
   }, [userEmail]);
 
   const handleDelete = async (id) => {
-    console.log("Kliknięto usuń, id:", id);
-    if (!id || typeof id !== "string") {
-      console.error("Nieprawidłowe ID wydarzenia do usunięcia:", id);
-      return;
-    }
-
     try {
       await deleteDoc(doc(db, "events", id));
       setEvents((prevEvents) => prevEvents.filter((e) => e.id !== id));
@@ -58,27 +56,39 @@ function EventList() {
     }
   };
 
-  const handleJoin = async (eventId) => {
+  const handleJoinOrLeave = async (eventId, alreadyJoined) => {
     if (!userEmail) {
       alert("Musisz być zalogowany, aby dołączyć!");
       return;
     }
 
+    const eventRef = doc(db, "events", eventId);
+
     try {
-      const eventRef = doc(db, "events", eventId);
       await updateDoc(eventRef, {
-        participants: arrayUnion(userEmail),
+        participants: alreadyJoined
+          ? arrayRemove(userEmail)
+          : arrayUnion(userEmail),
       });
 
       setEvents((prev) =>
-        prev.map((e) =>
-          e.id === eventId
-            ? { ...e, participants: [...(e.participants || []), userEmail], alreadyJoined: true }
-            : e
-        )
+        prev.map((e) => {
+          if (e.id !== eventId) return e;
+
+          const updatedParticipants = alreadyJoined
+            ? e.participants.filter((email) => email !== userEmail)
+            : [...e.participants, userEmail];
+
+          return {
+            ...e,
+            participants: updatedParticipants,
+            alreadyJoined: !alreadyJoined,
+            freeSlots: Math.max(e.slots - updatedParticipants.length, 0),
+          };
+        })
       );
     } catch (err) {
-      console.error("Błąd przy dołączaniu:", err);
+      console.error("Błąd przy aktualizacji uczestnictwa:", err);
     }
   };
 
@@ -123,14 +133,15 @@ function EventList() {
               <strong>Data:</strong> {event.date}
             </p>
             <p>
-              <strong>Miejsc:</strong> {event.slots}
+              <strong>Wolnych miejsc:</strong> {event.freeSlots}
             </p>
             <button onClick={() => handleDelete(event.id)}>🗑️ Usuń</button>{" "}
             <button
-              onClick={() => handleJoin(event.id)}
-              disabled={event.alreadyJoined}
+              onClick={() =>
+                handleJoinOrLeave(event.id, event.alreadyJoined)
+              }
             >
-              {event.alreadyJoined ? "✅ Zapisany" : "Dołącz"}
+              {event.alreadyJoined ? "❌ Opuść" : "✅ Dołącz"}
             </button>
           </div>
         ))
