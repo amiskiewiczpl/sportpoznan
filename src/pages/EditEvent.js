@@ -3,8 +3,10 @@ import { useParams, useNavigate } from "react-router-dom";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db, auth } from "../firebase";
 
+const adminEmails = process.env.REACT_APP_ADMIN_EMAILS?.split(",") || [];
+
 function EditEvent() {
-  const { id } = useParams(); // pobiera z linku np. /edytuj/ABC123
+  const { id } = useParams();
   const navigate = useNavigate();
   const [form, setForm] = useState(null);
   const [user, setUser] = useState(undefined);
@@ -20,12 +22,17 @@ function EditEvent() {
       const snap = await getDoc(ref);
       if (snap.exists()) {
         const data = snap.data();
-        if (auth.currentUser?.uid !== data.createdBy) {
-          alert("To nie Ty zrobiłeś to wydarzenie – nie możesz edytować!");
+
+        const isCreator = auth.currentUser?.uid === data.createdBy;
+        const isAdmin = adminEmails.includes(auth.currentUser?.email);
+
+        if (!isCreator && !isAdmin) {
+          alert("Nie masz uprawnień do edycji tego wydarzenia.");
           navigate("/wydarzenia");
           return;
         }
-        setForm(data); // wypełniamy formularz istniejącymi danymi
+
+        setForm(data);
       } else {
         alert("Nie ma takiego wydarzenia.");
         navigate("/wydarzenia");
